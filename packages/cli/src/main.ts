@@ -37,8 +37,8 @@ export async function main(argv: string[]): Promise<void> {
 	ensureConfigFile();
 	ensureModelsToml();
 
-	const stdinIsTty = process.stdin.isTTY === true;
-	const stdoutIsTty = process.stdout.isTTY === true;
+	const stdinIsTty = !!process.stdin.isTTY;
+	const stdoutIsTty = !!process.stdout.isTTY;
 	const appMode = resolveAppMode({
 		...(args.mode ? { mode: args.mode } : {}),
 		...(args.print !== undefined ? { print: args.print } : {}),
