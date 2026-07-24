@@ -1,6 +1,6 @@
 {
   "name": "@arbor-space/core",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "type": "module",
   "license": "MIT",
   "description": "Arbor agent harness core: agent loop, session tree, shadow-git snapshots, extensions",

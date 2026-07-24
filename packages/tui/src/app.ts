@@ -130,6 +130,7 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 		placeholder: "Message arbor…",
 		textColor: theme.text,
 		placeholderColor: theme.dim,
+		backgroundColor: theme.bgInput,
 	});
 	const queuedLine = new TextRenderable(renderer, { content: "", fg: theme.warn });
 	const status = createStatusBar(renderer, theme);
