@@ -14,5 +14,6 @@ export {
 	type SlashCommandResult,
 	type SlashCommandRuntime,
 	type SlashCommandSpec,
+	type TuiHook,
 	type TuiSlashCommandRuntime,
 } from "./types.ts";

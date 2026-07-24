@@ -16,8 +16,10 @@ import { createModels, type FauxProviderHandle, fauxProvider } from "@earendil-w
 import {
 	createSlashRuntime,
 	executeSlashCommand,
+	executeSlashCommandTui,
 	listCommands,
 	parseSlashCommand,
+	type TuiHook,
 } from "../src/commands/index.ts";
 
 let workspace: string;
@@ -144,4 +146,49 @@ describe("slash commands", () => {
 		assert.equal(outcome.kind, "consumed");
 		assert.equal(called, "hello");
 	});
+
+	it("handleTui sets the thinking level from args", async () => {
+		const session = makeSession();
+		const { runtime } = makeRuntime(session);
+		const outcome = await executeSlashCommandTui("/model thinking high", { runtime, tui: stubTui() });
+		assert.equal(outcome.kind, "consumed");
+		assert.equal(session.thinkingLevel, "high");
+	});
+
+	it("handleTui prompts for the thinking level when no args", async () => {
+		const session = makeSession();
+		const { runtime } = makeRuntime(session);
+		const tui = stubTui({ selectChoice: "medium" });
+		await executeSlashCommandTui("/model thinking", { runtime, tui });
+		assert.equal(session.thinkingLevel, "medium");
+	});
+
+	it("handleTui resolves and sets a model via resolveModel", async () => {
+		const session = makeSession();
+		const fakeModel = { id: "fake/one" } as never;
+		const runtime = createSlashRuntime(session, session.session, {
+			cwd: workspace,
+			output: () => {},
+			resolveModel: (provider, modelId) => (provider === "fake" && modelId === "one" ? fakeModel : null),
+		});
+		const outcome = await executeSlashCommandTui("/model set fake/one", { runtime, tui: stubTui() });
+		assert.equal(outcome.kind, "consumed");
+		assert.equal(session.model, fakeModel);
+	});
+
+	it("handleTui /help keys outputs the key reference", async () => {
+		const session = makeSession();
+		const { runtime, out } = makeRuntime(session);
+		await executeSlashCommandTui("/help keys", { runtime, tui: stubTui() });
+		assert.ok(out.some((t) => t.includes("Ctrl+T")));
+	});
 });
+
+function stubTui(opts: { selectChoice?: string } = {}): TuiHook {
+	return {
+		select: async () => opts.selectChoice,
+		confirm: async () => true,
+		input: async () => undefined,
+		notify: () => {},
+	};
+}

@@ -6,7 +6,7 @@
  * Frontends (CLI, TUI, SDK, subagent entry) consume this instead of wiring
  * the pieces themselves.
  */
-import type { Model, Usage } from "@earendil-works/pi-ai";
+import type { Model, ThinkingLevel, Usage } from "@earendil-works/pi-ai";
 import { type ContextFile, contextFilesPromptSection, loadContextFiles } from "./context-files.ts";
 import { ExtensionRunner } from "./extensions/runner.ts";
 import type { ExtensionContext, ExtensionUi } from "./extensions/types.ts";
@@ -76,6 +76,12 @@ export interface AgentSessionOptions {
 	 * the first successful turn). Default: enabled for persisted sessions.
 	 */
 	autoTitle?: boolean;
+	/**
+	 * Reasoning/thinking level forwarded to the provider stream call
+	 * (`SimpleStreamOptions.reasoning`). `undefined`/`"off"` uses the provider
+	 * default. Mutable at runtime so `/model thinking` can change it live.
+	 */
+	thinkingLevel?: ThinkingLevel | "off";
 }
 
 export type SessionEventListener = (event: AgentEvent) => void | Promise<void>;
@@ -97,6 +103,8 @@ export class AgentSession {
 	readonly jobs: BackgroundJobs | null;
 	model: Model<any>;
 	mode: AgentMode;
+	/** Live reasoning/thinking level forwarded to the stream call. */
+	thinkingLevel: ThinkingLevel | "off";
 
 	private readonly streamFn: StreamFn;
 	private readonly baseSystemPrompt: string;
@@ -134,6 +142,7 @@ export class AgentSession {
 		this.ui = options.ui ?? HEADLESS_UI;
 		this.hasInteractiveUi = options.ui !== undefined;
 		this.mode = options.mode ?? "build";
+		this.thinkingLevel = options.thinkingLevel ?? "off";
 		this.todos = createTodoStore((todos) => {
 			this.session.appendCustom(TODO_CUSTOM_TYPE, todos);
 		});
@@ -404,6 +413,7 @@ export class AgentSession {
 				},
 				{
 					model: this.model,
+					...(this.thinkingLevel !== "off" ? { streamOptions: { reasoning: this.thinkingLevel } } : {}),
 					convertToLlm: (messages) => messages as never,
 					transformContext: async (messages, sig) => {
 						// Extension context transform, then compaction check.

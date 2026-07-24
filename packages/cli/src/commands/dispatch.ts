@@ -82,6 +82,7 @@ export function createSlashRuntime(
 		cwd?: string;
 		output: SlashCommandRuntime["output"];
 		refreshCommands?: SlashCommandRuntime["refreshCommands"];
+		resolveModel?: SlashCommandRuntime["resolveModel"];
 	},
 ): SlashCommandRuntime {
 	return {
@@ -90,5 +91,6 @@ export function createSlashRuntime(
 		sessionManager,
 		output: opts.output,
 		...(opts.refreshCommands ? { refreshCommands: opts.refreshCommands } : {}),
+		...(opts.resolveModel ? { resolveModel: opts.resolveModel } : {}),
 	};
 }

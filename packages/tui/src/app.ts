@@ -413,6 +413,11 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 			render();
 			return;
 		}
+		if (trimmed === "/help quit" || trimmed === "/quit") {
+			session.abort();
+			opts.onQuit?.();
+			return;
+		}
 		if (opts.runCommand) {
 			const hook: TuiCommandHook = extensionUi ?? fallbackHook;
 			const msg = await opts.runCommand(trimmed, hook);

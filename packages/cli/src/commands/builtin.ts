@@ -1,8 +1,7 @@
 /**
  * Built-in slash commands. Each spec carries a two-level (category/name)
- * identity and a UI-agnostic `handle`. Interactive-only commands (model
- * pickers, display toggles, session pickers) omit `handle` — they resolve to
- * `tui_only` until their `handleTui` lands in M6.5.
+ * identity. `handle` is UI-agnostic (rpc/print/tui); `handleTui` is the
+ * interactive override (selectors, prompts) used in the TUI.
  */
 import type { AgentSession, SessionManager } from "@arbor-space/core";
 import type { ParsedSlashCommand, SlashCommandRuntime, SlashCommandSpec } from "./types.ts";
@@ -85,6 +84,28 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 		description: "Choose a model",
 		argumentHint: "<provider/id>",
 		allowArgs: true,
+		handleTui: async (cmd, { runtime, tui }) => {
+			let raw = cmd.args.trim();
+			if (!raw) {
+				raw = (await tui.input("Switch model", "provider/id")) ?? "";
+			}
+			if (!raw) return { consumed: true };
+			const slash = raw.indexOf("/");
+			if (slash === -1) {
+				await runtime.output("Use the form provider/id, e.g. anthropic/claude-opus-4-8.");
+				return { consumed: true };
+			}
+			const provider = raw.slice(0, slash);
+			const modelId = raw.slice(slash + 1);
+			const model = runtime.resolveModel?.(provider, modelId);
+			if (!model) {
+				await runtime.output(`Model not found: ${provider}/${modelId}`);
+				return { consumed: true };
+			}
+			runtime.session.model = model;
+			await runtime.output(`Model set to ${provider}/${modelId}.`);
+			return { consumed: true };
+		},
 	},
 	{ category: "model", name: "cycle", description: "Cycle to the next scoped model" },
 	{
@@ -93,6 +114,20 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 		description: "Set thinking level",
 		argumentHint: "<level>",
 		allowArgs: true,
+		handleTui: async (cmd, { runtime, tui }) => {
+			const levels = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+			let choice = cmd.args.trim();
+			if (!choice) {
+				choice = (await tui.select("Thinking level", [...levels])) ?? "off";
+			}
+			if (!choice || !levels.includes(choice as (typeof levels)[number])) {
+				await runtime.output(`Unknown level: ${choice}. Options: ${levels.join(", ")}`);
+				return { consumed: true };
+			}
+			runtime.session.thinkingLevel = choice as (typeof levels)[number];
+			await runtime.output(`Thinking level: ${choice}`);
+			return { consumed: true };
+		},
 	},
 
 	// -- context ----------------------------------------------------------
@@ -168,7 +203,15 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 	// -- display ----------------------------------------------------------
 	{ category: "display", name: "diff", description: "Toggle diff view style (unified/split)" },
 	{ category: "display", name: "expand", description: "Toggle tool output expansion" },
-	{ category: "display", name: "theme", description: "Choose a theme" },
+	{
+		category: "display",
+		name: "theme",
+		description: "Choose a theme",
+		handleTui: async (_cmd, { runtime }) => {
+			await runtime.output("Only the dark theme ships in v1 (light/high-contrast is future work).");
+			return { consumed: true };
+		},
+	},
 
 	// -- help -------------------------------------------------------------
 	{
@@ -180,7 +223,15 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 			return { consumed: true };
 		},
 	},
-	{ category: "help", name: "keys", description: "Show keyboard shortcuts" },
+	{
+		category: "help",
+		name: "keys",
+		description: "Show keyboard shortcuts",
+		handleTui: async (_cmd, { runtime }) => {
+			await runtime.output(KEY_REFERENCE);
+			return { consumed: true };
+		},
+	},
 	{
 		category: "help",
 		name: "quit",
@@ -201,6 +252,17 @@ export function builtinCommandInfos(): CommandInfo[] {
 		...(c.argumentHint ? { argumentHint: c.argumentHint } : {}),
 	}));
 }
+
+const KEY_REFERENCE = `Keyboard shortcuts (interactive mode):
+
+  Enter          Send / queue as steering while running / abort on empty
+  Esc            Withdraw queued message / rewind just-sent message
+  Ctrl+C         Abort + quit
+  Ctrl+T         Cycle main <-> subagent views
+  Ctrl+O         Toggle expanded bash output
+  /              Open the command palette
+  Up/Down        Move palette selection
+`;
 
 export function formatHelp(): string {
 	const byCategory = new Map<string, CommandInfo[]>();

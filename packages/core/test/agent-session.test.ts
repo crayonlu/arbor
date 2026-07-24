@@ -61,6 +61,26 @@ describe("AgentSession", () => {
 		assert.equal(session.getMessages().length, 2);
 	});
 
+	it("forwards thinkingLevel to the stream call as reasoning", async () => {
+		faux.setResponses([fauxAssistantMessage("ok")]);
+		const seen: unknown[] = [];
+		const capturingStream: StreamFn = (model, context, options) => {
+			seen.push(options);
+			return streamFn(model, context, options);
+		};
+		const session = makeSession({ streamFn: capturingStream, thinkingLevel: "high" });
+		await session.prompt("think hard");
+		assert.ok(seen.length > 0, "stream was called");
+		assert.equal((seen[0] as { reasoning?: string })?.reasoning, "high");
+
+		// Live change takes effect on the next turn.
+		session.thinkingLevel = "off";
+		seen.length = 0;
+		faux.setResponses([fauxAssistantMessage("ok2")]);
+		await session.prompt("again");
+		assert.notEqual((seen[0] as { reasoning?: string })?.reasoning, "high");
+	});
+
 	it("executes real file tools in the workspace", async () => {
 		faux.setResponses([
 			fauxAssistantMessage([fauxToolCall("write", { path: "hello.txt", content: "from the agent" })], {

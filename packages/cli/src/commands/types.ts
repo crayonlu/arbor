@@ -41,19 +41,28 @@ export type SlashCommandOutcome =
 	| { kind: "tui_only"; name: string }
 	| { kind: "unknown"; name: string };
 
+export interface TuiHook {
+	select(title: string, options: string[]): Promise<string | undefined>;
+	confirm(title: string, message: string): Promise<boolean>;
+	input(title: string, placeholder?: string): Promise<string | undefined>;
+	notify(message: string, level?: "info" | "warn" | "error"): void;
+}
+
 export interface SlashCommandRuntime {
 	cwd: string;
 	session: import("@arbor-space/core").AgentSession;
 	sessionManager: import("@arbor-space/core").SessionManager;
 	output: (text: string) => void | Promise<void>;
 	refreshCommands?: () => void | Promise<void>;
+	/** Resolve a `provider/id` to a model (for `/model set`). */
+	resolveModel?: (provider: string, modelId: string) => import("@earendil-works/pi-ai").Model<any> | null;
 }
 
-/** Interactive context for `handleTui` (populated by the TUI in M6.5). */
+/** Interactive context for `handleTui` (populated by the TUI). */
 export interface TuiSlashCommandRuntime {
 	runtime: SlashCommandRuntime;
-	/** Hook to open a selector/palette etc. — wired by the TUI. */
-	tui: unknown;
+	/** Interactive UI hook (selectors, prompts) wired by the TUI. */
+	tui: TuiHook;
 }
 
 export interface SlashCommandSpec {

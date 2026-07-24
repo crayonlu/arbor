@@ -96,7 +96,7 @@ async function runInteractive(args: Args, sessionManager: SessionManager): Promi
 	const { createSlashRuntime, executeSlashCommandTui } = await import("./commands/dispatch.ts");
 
 	const extensionUi = createTuiExtensionUi();
-	const { session, jobs } = buildSession({
+	const { session, models, jobs } = buildSession({
 		cwd: process.cwd(),
 		args,
 		sessionManager,
@@ -122,6 +122,7 @@ async function runInteractive(args: Args, sessionManager: SessionManager): Promi
 				output: (t) => {
 					lines.push(t);
 				},
+				resolveModel: (provider, modelId) => models.getModel(provider, modelId) ?? null,
 			});
 			const outcome = await executeSlashCommandTui(text, { runtime, tui: hook });
 			if (outcome.kind === "unknown") lines.push(`Unknown command: /${outcome.name}`);
