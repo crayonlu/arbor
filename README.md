@@ -64,7 +64,10 @@ Invoke as `/<category> <name> [args]`. Open the `/` palette in the TUI to browse
 | `mode` | `build`, `plan` |
 | `tools` | `list`, `mcp` |
 | `display` | `diff`, `expand`, `theme` |
+| `skill` | `skill` (insert a skill into the input — review before sending) |
 | `help` | `help`, `keys`, `quit` |
+
+`/skill` opens a picker of discovered skills; selecting one drops `/skill:<name> ` into the input (it is **not** sent). Append your task and press Enter — the invocation expands to the skill body at submit time. (This fixes pi's behavior of auto-sending on selection.)
 
 ### Keyboard (interactive)
 

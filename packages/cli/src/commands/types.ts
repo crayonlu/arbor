@@ -18,6 +18,7 @@ export type SlashCategory =
 	| "tools"
 	| "display"
 	| "help"
+	| "skill"
 	| "extension";
 
 export interface ParsedSlashCommand {
@@ -48,6 +49,14 @@ export interface TuiHook {
 	notify(message: string, level?: "info" | "warn" | "error"): void;
 }
 
+/** Actions the TUI exposes to interactive command handlers. */
+export interface TuiActions {
+	/** Swap the running session: new / resume a stored one / fork the current. */
+	restart: (mode: "new" | "resume" | "fork", target?: string) => void;
+	/** Replace the input box text (does not send). */
+	setInput: (text: string) => void;
+}
+
 export interface SlashCommandRuntime {
 	cwd: string;
 	session: import("@arbor-space/core").AgentSession;
@@ -56,6 +65,8 @@ export interface SlashCommandRuntime {
 	refreshCommands?: () => void | Promise<void>;
 	/** Resolve a `provider/id` to a model (for `/model set`). */
 	resolveModel?: (provider: string, modelId: string) => import("@earendil-works/pi-ai").Model<any> | null;
+	/** List known models as `provider/id` (for `/model cycle`). */
+	listModels?: () => string[];
 }
 
 /** Interactive context for `handleTui` (populated by the TUI). */
@@ -63,6 +74,8 @@ export interface TuiSlashCommandRuntime {
 	runtime: SlashCommandRuntime;
 	/** Interactive UI hook (selectors, prompts) wired by the TUI. */
 	tui: TuiHook;
+	/** TUI actions (session swap, input prefill) wired by the TUI. */
+	actions: TuiActions;
 }
 
 export interface SlashCommandSpec {
@@ -97,6 +110,7 @@ export const CATEGORY_ORDER: readonly SlashCategory[] = [
 	"mode",
 	"tools",
 	"display",
+	"skill",
 	"help",
 	"extension",
 ];
@@ -108,6 +122,7 @@ export const CATEGORY_LABELS: Record<SlashCategory, string> = {
 	mode: "Mode",
 	tools: "Tools",
 	display: "Display",
+	skill: "Skill",
 	help: "Help",
 	extension: "Extension",
 };

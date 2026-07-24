@@ -94,44 +94,63 @@ async function runInteractive(args: Args, sessionManager: SessionManager): Promi
 	const { buildSession } = await import("./build-session.ts");
 	const { listCommands } = await import("./commands/registry.ts");
 	const { createSlashRuntime, executeSlashCommandTui } = await import("./commands/dispatch.ts");
+	const { SessionManager } = await import("@arbor-space/core");
 
-	const extensionUi = createTuiExtensionUi();
-	const { session, models, jobs } = buildSession({
-		cwd: process.cwd(),
-		args,
-		sessionManager,
-		mode: "interactive",
-		ui: extensionUi,
-	});
+	const cwd = process.cwd();
+	let manager: SessionManager = sessionManager;
 
-	const commands = listCommands(session).map((c) => ({
-		category: c.category,
-		name: c.name,
-		...(c.aliases ? { aliases: c.aliases } : {}),
-		description: c.description,
-		...(c.argumentHint ? { argumentHint: c.argumentHint } : {}),
-	}));
+	// Loop so `/session new|resume|fork` can swap the live session without
+	// restarting the process. Each iteration builds a fresh UI + session.
+	while (true) {
+		const extensionUi = createTuiExtensionUi();
+		const { session, models, jobs } = buildSession({
+			cwd,
+			args,
+			sessionManager: manager,
+			mode: "interactive",
+			ui: extensionUi,
+		});
 
-	await runTui(session, {
-		commands,
-		extensionUi,
-		runCommand: async (text, hook) => {
-			const lines: string[] = [];
-			const runtime = createSlashRuntime(session, sessionManager, {
-				cwd: process.cwd(),
-				output: (t) => {
-					lines.push(t);
-				},
-				resolveModel: (provider, modelId) => models.getModel(provider, modelId) ?? null,
-			});
-			const outcome = await executeSlashCommandTui(text, { runtime, tui: hook });
-			if (outcome.kind === "unknown") lines.push(`Unknown command: /${outcome.name}`);
-			if (outcome.kind === "tui_only")
-				lines.push(`/${outcome.name} needs interactive args — type it directly with arguments.`);
-			void jobs;
-			return lines.length > 0 ? lines.join("\n") : undefined;
-		},
-	});
+		const commands = listCommands(session).map((c) => ({
+			category: c.category,
+			name: c.name,
+			...(c.aliases ? { aliases: c.aliases } : {}),
+			description: c.description,
+			...(c.argumentHint ? { argumentHint: c.argumentHint } : {}),
+		}));
+
+		const exit = await runTui(session, {
+			commands,
+			extensionUi,
+			runCommand: async (text, hook, actions) => {
+				const lines: string[] = [];
+				const runtime = createSlashRuntime(session, session.session, {
+					cwd,
+					output: (t) => {
+						lines.push(t);
+					},
+					resolveModel: (provider, modelId) => models.getModel(provider, modelId) ?? null,
+					listModels: () => models.getModels().map((m) => `${m.provider}/${m.id}`),
+				});
+				const outcome = await executeSlashCommandTui(text, { runtime, tui: hook, actions });
+				if (outcome.kind === "unknown") lines.push(`Unknown command: /${outcome.name}`);
+				if (outcome.kind === "tui_only")
+					lines.push(`/${outcome.name} needs interactive args — type it directly with arguments.`);
+				void jobs;
+				return lines.length > 0 ? lines.join("\n") : undefined;
+			},
+		});
+
+		if (exit.kind === "quit") return;
+		if (exit.mode === "new") {
+			manager = SessionManager.create(cwd);
+		} else if (exit.mode === "resume" && exit.target) {
+			manager = SessionManager.load(exit.target);
+		} else if (exit.mode === "fork") {
+			const filePath = session.session.filePath;
+			manager = filePath ? SessionManager.fork(filePath) : SessionManager.create(cwd);
+		}
+	}
 }
 
 function buildInitialMessage(args: Args, pipedStdin?: string): string | undefined {

@@ -44,14 +44,26 @@ export interface TuiCommandHook {
 	notify(message: string, level?: "info" | "warn" | "error"): void;
 }
 
+/** Actions the TUI exposes to interactive command handlers. */
+export interface TuiActions {
+	restart: (mode: "new" | "resume" | "fork", target?: string) => void;
+	setInput: (text: string) => void;
+}
+
+/** Why the TUI session ended — `restart` lets the caller swap sessions. */
+export type TuiExit =
+	| { kind: "quit" }
+	| { kind: "restart"; mode: "new" | "resume" | "fork"; target?: string };
+
 export interface TuiOptions {
 	theme?: ArborTheme;
 	treeSitterClient?: TreeSitterClient;
-	onQuit?: () => void;
+	/** Called when the user quits or requests a session swap. */
+	onExit?: (exit: TuiExit) => void;
 	/** Categorized slash commands for the `/` palette. */
 	commands?: TuiCommandInfo[];
 	/** Run a `/<category> <name> [args]` string; returns a status message. */
-	runCommand?: (text: string, hook: TuiCommandHook) => Promise<string | undefined>;
+	runCommand?: (text: string, hook: TuiCommandHook, actions: TuiActions) => Promise<string | undefined>;
 	/** Interactive UI bridge (mounted onto the renderer). */
 	extensionUi?: TuiExtensionUi;
 }
@@ -134,6 +146,20 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 	let palette: CommandPalette | null = null;
 	let diffSplit = renderer.width >= 100;
 	let expandAll = false;
+
+	// Actions exposed to interactive slash commands (session swap, input prefill).
+	const actions: TuiActions = {
+		restart: (mode, target) => {
+			session.abort();
+			opts.onExit?.({ kind: "restart", mode, ...(target ? { target } : {}) });
+		},
+		setInput: (text) => {
+			input.value = text;
+			input.focusable = true;
+			input.focus();
+			render();
+		},
+	};
 
 	function submit(): void {
 		const text = input.value;
@@ -397,6 +423,19 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 
 	async function dispatchSlash(text: string): Promise<void> {
 		const trimmed = text.trim();
+		// `/skill:<name> [args]` expands to the skill body and sends as a prompt.
+		// Unlike pi, selection only fills the input — the user reviews/edits and
+		// sends deliberately (no auto-send).
+		if (trimmed.startsWith("/skill:")) {
+			const expanded = await expandSkillInvocation(trimmed, session);
+			if (expanded !== null) {
+				input.value = "";
+				if (model.get().running) queued = expanded;
+				void session.prompt(expanded);
+				render();
+				return;
+			}
+		}
 		// Display toggles are TUI-local concerns.
 		if (trimmed === "/display diff" || trimmed === "/display diff split") {
 			diffSplit = true;
@@ -415,12 +454,12 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 		}
 		if (trimmed === "/help quit" || trimmed === "/quit") {
 			session.abort();
-			opts.onQuit?.();
+			opts.onExit?.({ kind: "quit" });
 			return;
 		}
 		if (opts.runCommand) {
 			const hook: TuiCommandHook = extensionUi ?? fallbackHook;
-			const msg = await opts.runCommand(trimmed, hook);
+			const msg = await opts.runCommand(trimmed, hook, actions);
 			if (msg) {
 				model.handle({
 					type: "job_notification",
@@ -512,7 +551,7 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 		}
 		if (key.ctrl && key.name === "c") {
 			session.abort();
-			opts.onQuit?.();
+			opts.onExit?.({ kind: "quit" });
 			return;
 		}
 		if (key.ctrl && key.name === "t") {
@@ -606,7 +645,7 @@ function countActiveJobs(jobs: { list?: () => unknown[]; active?: unknown[] }): 
 	}
 }
 
-export async function runTui(session: AgentSession, opts: TuiOptions = {}): Promise<void> {
+export async function runTui(session: AgentSession, opts: TuiOptions = {}): Promise<TuiExit> {
 	const renderer = await createCliRenderer({
 		exitOnCtrlC: false,
 		useMouse: false,
@@ -619,13 +658,32 @@ export async function runTui(session: AgentSession, opts: TuiOptions = {}): Prom
 	} catch {
 		treeSitter = undefined;
 	}
-	const app = createTuiApp(renderer, session, {
-		...opts,
-		...(treeSitter ? { treeSitterClient: treeSitter } : {}),
-		onQuit: () => {
-			app.destroy();
-			renderer.destroy();
-			process.exit(0);
-		},
+	return new Promise<TuiExit>((resolve) => {
+		const app = createTuiApp(renderer, session, {
+			...opts,
+			...(treeSitter ? { treeSitterClient: treeSitter } : {}),
+			onExit: (exit) => {
+				app.destroy();
+				renderer.destroy();
+				resolve(exit);
+			},
+		});
 	});
+}
+
+/**
+ * Expand `/skill:<name> [args]` to the skill body (via loadSkillBody). Returns
+ * null when the skill is unknown so the caller can treat it as a normal command.
+ */
+export async function expandSkillInvocation(text: string, session: AgentSession): Promise<string | null> {
+	const stripped = text.startsWith("/") ? text.slice(1) : text;
+	const space = stripped.indexOf(" ");
+	const token = space === -1 ? stripped : stripped.slice(0, space);
+	const args = space === -1 ? "" : stripped.slice(space + 1).trim();
+	if (!token.startsWith("skill:")) return null;
+	const name = token.slice("skill:".length);
+	const skill = session.skills.find((s) => s.name === name);
+	if (!skill) return null;
+	const { loadSkillBody } = await import("@arbor-space/core");
+	return loadSkillBody(skill, args);
 }

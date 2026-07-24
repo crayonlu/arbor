@@ -109,7 +109,8 @@ export class AgentSession {
 	private readonly streamFn: StreamFn;
 	private readonly baseSystemPrompt: string;
 	private readonly workspaceTools: AgentTool<any>[];
-	private readonly skills: Skill[];
+	/** Discovered skills (name + description in the system prompt; full body via `read`). */
+	readonly skills: Skill[];
 	private readonly compactionSettings: CompactionSettings;
 	private readonly ui: ExtensionUi;
 	/** True when the caller provided a real UI (enables the ask tool). */

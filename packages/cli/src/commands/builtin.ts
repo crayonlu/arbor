@@ -13,17 +13,45 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 		category: "session",
 		name: "new",
 		description: "Start a new session",
+		handleTui: async (_cmd, { tui, actions }) => {
+			if (!(await tui.confirm("New session", "Discard the current session and start fresh?"))) {
+				return { consumed: true };
+			}
+			actions.restart("new");
+			return { consumed: true };
+		},
 	},
 	{
 		category: "session",
 		name: "resume",
 		description: "Resume a different session",
+		handleTui: async (_cmd, { runtime, tui, actions }) => {
+			const { SessionManager } = await import("@arbor-space/core");
+			const sessions = await SessionManager.list(runtime.cwd);
+			if (sessions.length === 0) {
+				await runtime.output("No saved sessions found in this cwd.");
+				return { consumed: true };
+			}
+			const labels = sessions.map(
+				(s) => `${s.name ?? s.id.slice(0, 8)}  ${s.messageCount} msgs  ${s.timestamp}`,
+			);
+			const choice = await tui.select("Resume session", labels);
+			if (!choice) return { consumed: true };
+			const idx = labels.indexOf(choice);
+			const target = sessions[idx];
+			if (target) actions.restart("resume", target.path);
+			return { consumed: true };
+		},
 	},
 	{
 		category: "session",
 		name: "fork",
-		description: "Fork from a previous entry",
+		description: "Fork the current session",
 		allowArgs: true,
+		handleTui: async (_cmd, { actions }) => {
+			actions.restart("fork");
+			return { consumed: true };
+		},
 	},
 	{
 		category: "session",
@@ -55,9 +83,22 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 	{
 		category: "session",
 		name: "export",
-		description: "Export the session",
+		description: "Export the session transcript as Markdown",
 		argumentHint: "<path>",
 		allowArgs: true,
+		handle: async (cmd, runtime) => {
+			const dest = cmd.args.trim();
+			if (!dest) {
+				await runtime.output("Usage: /session export <path>");
+				return { consumed: true };
+			}
+			const { writeFile } = await import("node:fs/promises");
+			const { resolve } = await import("node:path");
+			const md = exportMarkdown(runtime.session.getMessages());
+			await writeFile(resolve(runtime.cwd, dest), md, "utf-8");
+			await runtime.output(`Exported ${runtime.session.getMessages().length} messages to ${dest}.`);
+			return { consumed: true };
+		},
 	},
 	{
 		category: "session",
@@ -107,7 +148,33 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 			return { consumed: true };
 		},
 	},
-	{ category: "model", name: "cycle", description: "Cycle to the next scoped model" },
+	{
+		category: "model",
+		name: "cycle",
+		description: "Cycle to the next known model",
+		handleTui: async (_cmd, { runtime }) => {
+			const ids = runtime.listModels?.() ?? [];
+			if (ids.length === 0) {
+				await runtime.output("No models available to cycle.");
+				return { consumed: true };
+			}
+			const current = `${runtime.session.model.provider}/${runtime.session.model.id}`;
+			const idx = ids.indexOf(current);
+			const next = ids[(idx + 1) % ids.length] ?? ids[0];
+			if (!next) return { consumed: true };
+			const slash = next.indexOf("/");
+			const provider = slash === -1 ? next : next.slice(0, slash);
+			const modelId = slash === -1 ? next : next.slice(slash + 1);
+			const model = runtime.resolveModel?.(provider, modelId);
+			if (!model) {
+				await runtime.output(`Model not found: ${next}`);
+				return { consumed: true };
+			}
+			runtime.session.model = model;
+			await runtime.output(`Model: ${next}`);
+			return { consumed: true };
+		},
+	},
 	{
 		category: "model",
 		name: "thinking",
@@ -162,7 +229,41 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 			return { consumed: true };
 		},
 	},
-	{ category: "context", name: "clear", description: "Clear the conversation (new session)" },
+	{
+		category: "context",
+		name: "clear",
+		description: "Clear the conversation (new session)",
+		handleTui: async (_cmd, { tui, actions }) => {
+			if (!(await tui.confirm("Clear conversation", "Start a new session and discard this one?"))) {
+				return { consumed: true };
+			}
+			actions.restart("new");
+			return { consumed: true };
+		},
+	},
+	{
+		category: "skill",
+		name: "skill",
+		description: "Insert a skill into the input (review before sending)",
+		handleTui: async (_cmd, { runtime, tui, actions }) => {
+			const skills = runtime.session.skills;
+			if (skills.length === 0) {
+				await runtime.output(
+					"No skills discovered. Add SKILL.md files under ~/.arbor/skills or .arbor/skills.",
+				);
+				return { consumed: true };
+			}
+			const choice = await tui.select(
+				"Insert skill",
+				skills.map((s) => s.name),
+			);
+			if (!choice) return { consumed: true };
+			// Add the invocation token to the input — NOT sent. The user appends
+			// their task and sends; the TUI expands /skill:<name> at submit time.
+			actions.setInput(`/skill:${choice} `);
+			return { consumed: true };
+		},
+	},
 
 	// -- mode -------------------------------------------------------------
 	{
@@ -198,7 +299,27 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 			return { consumed: true };
 		},
 	},
-	{ category: "tools", name: "mcp", description: "Manage MCP servers" },
+	{
+		category: "tools",
+		name: "mcp",
+		description: "List discovered MCP servers",
+		handleTui: async (_cmd, { runtime }) => {
+			const { discoverMcpConfig } = await import("@arbor-space/core");
+			const config = await discoverMcpConfig({ cwd: runtime.cwd });
+			const names = Object.keys(config.mcpServers);
+			if (names.length === 0) {
+				await runtime.output("No MCP servers configured. Add mcpServers to .arbor/mcp.json or .mcp.json.");
+				return { consumed: true };
+			}
+			const lines = names.map((n) => {
+				const s = config.mcpServers[n] as { command?: string; url?: string; transport?: string };
+				const detail = s.command ?? s.url ?? s.transport ?? "(unknown transport)";
+				return `  ${n}  ${detail}`;
+			});
+			await runtime.output(`MCP servers (${names.length}):\n${lines.join("\n")}`);
+			return { consumed: true };
+		},
+	},
 
 	// -- display ----------------------------------------------------------
 	{ category: "display", name: "diff", description: "Toggle diff view style (unified/split)" },
@@ -281,6 +402,32 @@ export function formatHelp(): string {
 		return `${CATEGORY_LABELS[cat]}:\n${lines.join("\n")}`;
 	}).filter((s) => s.length > 0);
 	return `Commands (category/name):\n\n${sections.join("\n\n")}`;
+}
+
+/** Render the session transcript as Markdown for `/session export`. */
+function exportMarkdown(messages: readonly { role?: string; content?: unknown }[]): string {
+	const lines: string[] = [`# Arbor session export`, ""];
+	for (const msg of messages) {
+		const role = msg.role ?? "unknown";
+		const text =
+			typeof msg.content === "string"
+				? msg.content
+				: Array.isArray(msg.content)
+					? (msg.content as { type?: string; text?: string; thinking?: string }[])
+							.map((b) =>
+								b.type === "text"
+									? (b.text ?? "")
+									: b.type === "thinking"
+										? `> ${b.thinking ?? ""}`
+										: b.type
+											? `[${b.type}]`
+											: "",
+							)
+							.join("\n")
+					: "";
+		lines.push(`## ${role}`, "", text, "");
+	}
+	return lines.join("\n");
 }
 
 /** Build the runtime handed to command handlers. */

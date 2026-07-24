@@ -6,7 +6,16 @@
  * Bun.dlopen; Node lacks node:ffi). The CLI lazy-imports this package only for
  * interactive mode so headless modes never load the native addon.
  */
-export { createTuiApp, runTui, type TuiApp, type TuiCommandHook, type TuiOptions } from "./app.ts";
+export {
+	createTuiApp,
+	expandSkillInvocation,
+	runTui,
+	type TuiActions,
+	type TuiApp,
+	type TuiCommandHook,
+	type TuiExit,
+	type TuiOptions,
+} from "./app.ts";
 export type { TuiCommandInfo } from "./components/command-palette.ts";
 export { type Item, SessionModel, type SessionModelState } from "./event-bridge.ts";
 export { icons } from "./icons.ts";

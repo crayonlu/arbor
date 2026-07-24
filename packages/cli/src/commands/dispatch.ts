@@ -83,6 +83,7 @@ export function createSlashRuntime(
 		output: SlashCommandRuntime["output"];
 		refreshCommands?: SlashCommandRuntime["refreshCommands"];
 		resolveModel?: SlashCommandRuntime["resolveModel"];
+		listModels?: SlashCommandRuntime["listModels"];
 	},
 ): SlashCommandRuntime {
 	return {
@@ -92,5 +93,6 @@ export function createSlashRuntime(
 		output: opts.output,
 		...(opts.refreshCommands ? { refreshCommands: opts.refreshCommands } : {}),
 		...(opts.resolveModel ? { resolveModel: opts.resolveModel } : {}),
+		...(opts.listModels ? { listModels: opts.listModels } : {}),
 	};
 }

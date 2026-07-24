@@ -12,7 +12,12 @@ import {
 	type StreamFn,
 } from "@arbor-space/core";
 import { createCodingTools } from "@arbor-space/core/tools";
-import { createModels, type FauxProviderHandle, fauxProvider } from "@earendil-works/pi-ai";
+import {
+	createModels,
+	type FauxProviderHandle,
+	fauxAssistantMessage,
+	fauxProvider,
+} from "@earendil-works/pi-ai";
 import {
 	createSlashRuntime,
 	executeSlashCommand,
@@ -150,7 +155,11 @@ describe("slash commands", () => {
 	it("handleTui sets the thinking level from args", async () => {
 		const session = makeSession();
 		const { runtime } = makeRuntime(session);
-		const outcome = await executeSlashCommandTui("/model thinking high", { runtime, tui: stubTui() });
+		const outcome = await executeSlashCommandTui("/model thinking high", {
+			runtime,
+			tui: stubTui(),
+			actions: stubActions(),
+		});
 		assert.equal(outcome.kind, "consumed");
 		assert.equal(session.thinkingLevel, "high");
 	});
@@ -159,7 +168,7 @@ describe("slash commands", () => {
 		const session = makeSession();
 		const { runtime } = makeRuntime(session);
 		const tui = stubTui({ selectChoice: "medium" });
-		await executeSlashCommandTui("/model thinking", { runtime, tui });
+		await executeSlashCommandTui("/model thinking", { runtime, tui, actions: stubActions() });
 		assert.equal(session.thinkingLevel, "medium");
 	});
 
@@ -171,7 +180,11 @@ describe("slash commands", () => {
 			output: () => {},
 			resolveModel: (provider, modelId) => (provider === "fake" && modelId === "one" ? fakeModel : null),
 		});
-		const outcome = await executeSlashCommandTui("/model set fake/one", { runtime, tui: stubTui() });
+		const outcome = await executeSlashCommandTui("/model set fake/one", {
+			runtime,
+			tui: stubTui(),
+			actions: stubActions(),
+		});
 		assert.equal(outcome.kind, "consumed");
 		assert.equal(session.model, fakeModel);
 	});
@@ -179,8 +192,40 @@ describe("slash commands", () => {
 	it("handleTui /help keys outputs the key reference", async () => {
 		const session = makeSession();
 		const { runtime, out } = makeRuntime(session);
-		await executeSlashCommandTui("/help keys", { runtime, tui: stubTui() });
+		await executeSlashCommandTui("/help keys", { runtime, tui: stubTui(), actions: stubActions() });
 		assert.ok(out.some((t) => t.includes("Ctrl+T")));
+	});
+
+	it("handleTui /skill inserts the invocation token without sending", async () => {
+		const session = makeSession();
+		const { runtime } = makeRuntime(session);
+		let set = "";
+		const actions = stubActions({ onSet: (t) => (set = t) });
+		// No skills discovered → message, no setInput.
+		await executeSlashCommandTui("/skill", { runtime, tui: stubTui(), actions });
+		assert.equal(set, "");
+	});
+
+	it("handleTui /session new restarts into a fresh session on confirm", async () => {
+		const session = makeSession();
+		const { runtime } = makeRuntime(session);
+		let restartMode = "";
+		const actions = stubActions({ onRestart: (m) => (restartMode = m) });
+		await executeSlashCommandTui("/session new", { runtime, tui: stubTui(), actions });
+		assert.equal(restartMode, "new");
+	});
+
+	it("handleTui /session export writes a transcript file", async () => {
+		const session = makeSession();
+		faux.setResponses([fauxAssistantMessage("hello reply")]);
+		await session.prompt("hi");
+		const { runtime, out } = makeRuntime(session);
+		await executeSlashCommand("/session export ../out.md", runtime);
+		const { readFile } = await import("node:fs/promises");
+		const text = await readFile(`${workspace}/../out.md`, "utf-8");
+		assert.ok(text.includes("# Arbor session export"));
+		assert.ok(text.includes("hello reply"));
+		assert.ok(out.some((t) => t.includes("Exported")));
 	});
 });
 
@@ -190,5 +235,14 @@ function stubTui(opts: { selectChoice?: string } = {}): TuiHook {
 		confirm: async () => true,
 		input: async () => undefined,
 		notify: () => {},
+	};
+}
+
+function stubActions(
+	opts: { onRestart?: (m: "new" | "resume" | "fork") => void; onSet?: (t: string) => void } = {},
+) {
+	return {
+		restart: (mode: "new" | "resume" | "fork") => opts.onRestart?.(mode),
+		setInput: (text: string) => opts.onSet?.(text),
 	};
 }
