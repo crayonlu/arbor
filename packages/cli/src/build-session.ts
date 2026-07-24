@@ -89,10 +89,11 @@ function resolveModel(args: Args, models: MutableModels, defaultModel: string): 
 	const raw = args.model ?? process.env.ARBOR_MODEL ?? defaultModel;
 	if (!raw) {
 		const all = models.getModels();
-		const sensible = all.find(
-			(m) => m.provider === "anthropic" || m.provider === "openai" || m.provider === "deepseek",
-		);
-		if (sensible) return sensible;
+		const preferred = ["claude-sonnet-5", "gpt-4.1", "deepseek-v4-pro"];
+		for (const id of preferred) {
+			const found = all.find((m) => m.id === id);
+			if (found) return found;
+		}
 		if (all[0]) return all[0];
 		throw new Error("No model configured. Type /model select to choose a model.");
 	}
