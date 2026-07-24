@@ -4,6 +4,13 @@
   "type": "module",
   "license": "MIT",
   "description": "Arbor agent harness core: agent loop, session tree, shadow-git snapshots, extensions",
+  "keywords": ["agent", "cli", "coding-agent", "llm", "harness"],
+  "author": "crayonlu",
+  "repository": { "type": "git", "url": "https://github.com/crayonlu/arbor.git", "directory": "packages/core" },
+  "homepage": "https://github.com/crayonlu/arbor",
+  "bugs": { "url": "https://github.com/crayonlu/arbor/issues" },
+  "files": ["src"],
+  "publishConfig": { "access": "public" },
   "exports": {
     ".": "./src/index.ts",
     "./tools": "./src/tools/index.ts"

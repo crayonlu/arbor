@@ -4,6 +4,13 @@
   "type": "module",
   "license": "MIT",
   "description": "Arbor CLI: thin entry — arg parsing, mode dispatch (print/json/rpc/interactive)",
+  "keywords": ["agent", "cli", "coding-agent", "llm", "arbor"],
+  "author": "crayonlu",
+  "repository": { "type": "git", "url": "https://github.com/crayonlu/arbor.git", "directory": "packages/cli" },
+  "homepage": "https://github.com/crayonlu/arbor",
+  "bugs": { "url": "https://github.com/crayonlu/arbor/issues" },
+  "files": ["src"],
+  "publishConfig": { "access": "public" },
   "bin": {
     "arbor": "./src/cli.ts"
   },

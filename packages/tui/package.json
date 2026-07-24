@@ -4,6 +4,13 @@
   "type": "module",
   "license": "MIT",
   "description": "Arbor terminal UI: OpenTUI-based interactive renderer consuming the core event stream",
+  "keywords": ["agent", "tui", "terminal", "cli", "opentui"],
+  "author": "crayonlu",
+  "repository": { "type": "git", "url": "https://github.com/crayonlu/arbor.git", "directory": "packages/tui" },
+  "homepage": "https://github.com/crayonlu/arbor",
+  "bugs": { "url": "https://github.com/crayonlu/arbor/issues" },
+  "files": ["src"],
+  "publishConfig": { "access": "public" },
   "exports": {
     ".": "./src/index.ts"
   },
