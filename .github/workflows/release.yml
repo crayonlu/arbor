@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   release:
@@ -20,6 +21,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -29,6 +31,11 @@ jobs:
 
       - name: Verify (type-check + lint + tests)
         run: npm run check && npm test
+
+      - name: Publish to npm
+        run: npm publish --workspaces --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build release notes
         id: notes
