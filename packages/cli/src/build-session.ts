@@ -88,6 +88,8 @@ export async function buildSession(input: BuildSessionInput): Promise<BuiltSessi
 function resolveModel(args: Args, models: MutableModels, defaultModel: string): Model<any> {
 	const raw = args.model ?? process.env.ARBOR_MODEL ?? defaultModel;
 	if (!raw) {
+		const first = models.getModels()[0];
+		if (first) return first;
 		throw new Error("No model configured. Type /model select to choose a model.");
 	}
 	let provider = args.provider;
