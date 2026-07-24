@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/crayonlu/arbor/main/schemas/config.schema.json",
+  "title": "Arbor Configuration",
+  "type": "object",
+  "properties": {
+    "ui": {
+      "type": "object",
+      "description": "Display/UI settings",
+      "properties": {
+        "diff_view": {
+          "type": "string",
+          "enum": ["auto", "split", "unified"],
+          "default": "auto",
+          "description": "Default diff layout mode"
+        },
+        "syntax_highlighting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable tree-sitter syntax highlighting in diffs and code blocks"
+        }
+      }
+    },
+    "bash": {
+      "type": "object",
+      "description": "Bash tool settings",
+      "properties": {
+        "default_timeout_ms": {
+          "type": "integer",
+          "default": 120000,
+          "description": "Default timeout for bash commands (ms)"
+        },
+        "max_timeout_ms": {
+          "type": "integer",
+          "default": 600000,
+          "description": "Maximum allowed timeout for bash commands (ms)"
+        },
+        "auto_background_threshold_ms": {
+          "type": "integer",
+          "default": 60000,
+          "description": "Commands slower than this are promoted to background jobs (ms)"
+        }
+      }
+    }
+  }
+}

@@ -121,8 +121,50 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 	// -- model ------------------------------------------------------------
 	{
 		category: "model",
+		name: "select",
+		description: "Select a model (provider > model)",
+		handleTui: async (_cmd, { runtime, tui }) => {
+			const modelIds = runtime.listModels?.() ?? [];
+			const providers = [...new Set(modelIds.map((m) => m.split("/")[0] ?? ""))].sort();
+			if (providers.length === 0) {
+				await runtime.output("No models available.");
+				return { consumed: true };
+			}
+			const providerChoice = await tui.select("Model > Provider", providers);
+			if (!providerChoice) return { consumed: true };
+			const models = modelIds
+				.filter((m) => m.startsWith(`${providerChoice}/`))
+				.map((m) => m.slice(m.indexOf("/") + 1))
+				.sort();
+			if (models.length === 0) {
+				await runtime.output(`No models found for provider "${providerChoice}".`);
+				return { consumed: true };
+			}
+			const modelChoice = await tui.select(`Model > ${providerChoice}`, models);
+			if (!modelChoice) return { consumed: true };
+			const fullId = `${providerChoice}/${modelChoice}`;
+			const model = runtime.resolveModel?.(providerChoice, modelChoice);
+			if (!model) {
+				await runtime.output(`Model not found: ${fullId}`);
+				return { consumed: true };
+			}
+			runtime.session.model = model;
+			try {
+				const { readModelsToml, writeModelsToml } = await import("@arbor-space/core/config");
+				const toml = readModelsToml();
+				toml.default_model = fullId;
+				writeModelsToml(toml);
+			} catch {
+				// config persistence is best-effort
+			}
+			await runtime.output(`Model: ${fullId}`);
+			return { consumed: true };
+		},
+	},
+	{
+		category: "model",
 		name: "set",
-		description: "Choose a model",
+		description: "Set model by provider/id",
 		argumentHint: "<provider/id>",
 		allowArgs: true,
 		handleTui: async (cmd, { runtime, tui }) => {
@@ -133,7 +175,7 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 			if (!raw) return { consumed: true };
 			const slash = raw.indexOf("/");
 			if (slash === -1) {
-				await runtime.output("Use the form provider/id, e.g. anthropic/claude-opus-4-8.");
+				await runtime.output("Use the form provider/id, e.g. anthropic/claude-sonnet-5.");
 				return { consumed: true };
 			}
 			const provider = raw.slice(0, slash);
@@ -144,6 +186,14 @@ export const BUILTIN_COMMANDS: readonly SlashCommandSpec[] = [
 				return { consumed: true };
 			}
 			runtime.session.model = model;
+			try {
+				const { readModelsToml, writeModelsToml } = await import("@arbor-space/core/config");
+				const toml = readModelsToml();
+				toml.default_model = raw;
+				writeModelsToml(toml);
+			} catch {
+				// config persistence is best-effort
+			}
 			await runtime.output(`Model set to ${provider}/${modelId}.`);
 			return { consumed: true };
 		},

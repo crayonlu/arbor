@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/crayonlu/arbor/main/schemas/models.schema.json",
+  "title": "Arbor Model Registry",
+  "type": "object",
+  "properties": {
+    "default_model": {
+      "type": "string",
+      "default": "",
+      "description": "Default model (provider/id). Leave empty to select on first prompt."
+    }
+  },
+  "patternProperties": {
+    "^provider$": { "type": "object" }
+  },
+  "additionalProperties": {
+    "type": "object",
+    "description": "Custom provider definition",
+    "required": ["name", "api_type", "base_url", "models"],
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Display name for this provider"
+      },
+      "api_type": {
+        "type": "string",
+        "enum": [
+          "openai-completions", "openai-responses", "openai-codex-responses",
+          "azure-openai-responses",
+          "anthropic-messages", "google-generative-ai",
+          "bedrock-converse-stream"
+        ],
+        "description": "API protocol the provider implements"
+      },
+      "base_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "API base URL"
+      },
+      "auth_env": {
+        "type": "string",
+        "description": "Environment variable name for the API key"
+      },
+      "headers": {
+        "type": "object",
+        "description": "Additional HTTP headers (key-value pairs)",
+        "additionalProperties": { "type": "string" }
+      },
+      "models": {
+        "type": "array",
+        "description": "Models available on this provider",
+        "items": {
+          "type": "object",
+          "required": ["id", "name"],
+          "properties": {
+            "id": { "type": "string", "description": "Model identifier" },
+            "name": { "type": "string", "description": "Display name" },
+            "reasoning": { "type": "boolean", "default": false },
+            "context_window": { "type": "integer", "default": 200000 },
+            "max_tokens": { "type": "integer", "default": 8192 },
+            "cost": {
+              "type": "object",
+              "properties": {
+                "input": { "type": "number", "description": "$/M input tokens" },
+                "output": { "type": "number", "description": "$/M output tokens" },
+                "cache_read": { "type": "number", "default": 0, "description": "$/M cached input tokens" },
+                "cache_write": { "type": "number", "default": 0, "description": "$/M cache write tokens" }
+              }
+            },
+            "input_modalities": {
+              "type": "array",
+              "items": { "enum": ["text", "image"] },
+              "default": ["text"]
+            },
+            "thinking_levels": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"] },
+              "description": "Supported thinking/reasoning levels"
+            }
+          }
+        }
+      }
+    }
+  }
+}

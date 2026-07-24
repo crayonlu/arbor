@@ -1,6 +1,6 @@
 {
   "name": "@arbor-space/core",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "license": "MIT",
   "description": "Arbor agent harness core: agent loop, session tree, shadow-git snapshots, extensions",
@@ -13,11 +13,13 @@
   "publishConfig": { "access": "public" },
   "exports": {
     ".": "./src/index.ts",
-    "./tools": "./src/tools/index.ts"
+    "./tools": "./src/tools/index.ts",
+    "./config": "./src/config.ts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.81.1",
     "@modelcontextprotocol/sdk": "1.29.0",
+    "smol-toml": "1.5.2",
     "typebox": "1.3.7"
   }
 }

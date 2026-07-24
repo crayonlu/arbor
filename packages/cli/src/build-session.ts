@@ -1,13 +1,3 @@
-/**
- * Translate parsed CLI args into a fully-wired AgentSession.
- *
- * Model resolution goes through pi-ai's `builtinModels()`; the stream function
- * is `models.streamSimple`. Tools come from `createCodingTools` with the
- * background-jobs registry wired in (auto-background yields to steering). The
- * UI is supplied by the caller — headless for print, roundtrip for rpc, the
- * TUI bridge for interactive — so this module stays UI-agnostic.
- */
-
 import type { AgentTool } from "@arbor-space/core";
 import {
 	AgentSession,
@@ -16,13 +6,13 @@ import {
 	type SessionManager,
 	SnapshotManager,
 } from "@arbor-space/core";
+import { readConfig, readModelsToml, registerCustomProviders } from "@arbor-space/core/config";
 import { createCodingTools } from "@arbor-space/core/tools";
 import type { Model, MutableModels } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { AppMode } from "./app-mode.ts";
 import type { Args } from "./args.ts";
 
-/** Headless UI: notifications are dropped, prompts decline/dismiss. */
 export const HEADLESS_UI: ExtensionUi = {
 	notify: () => {},
 	confirm: async () => false,
@@ -35,7 +25,6 @@ export interface BuildSessionInput {
 	args: Args;
 	sessionManager: SessionManager;
 	mode: AppMode;
-	/** UI bridge. Defaults to headless (print); rpc/interactive supply their own. */
 	ui?: ExtensionUi;
 }
 
@@ -51,24 +40,30 @@ const DEFAULT_SYSTEM_PROMPT = [
 	"Work step by step, verify your changes, and prefer minimal, targeted edits.",
 ].join(" ");
 
-export function buildSession(input: BuildSessionInput): BuiltSession {
+export async function buildSession(input: BuildSessionInput): Promise<BuiltSession> {
 	const { cwd, args, sessionManager } = input;
 
 	const models = builtinModels();
-	const model = resolveModel(args, models);
+	const modelsToml = readModelsToml();
+	await registerCustomProviders(models, modelsToml);
+
+	const model = resolveModel(args, models, modelsToml.default_model);
 	const streamFn = (m: Model<any>, context: unknown, options: unknown) =>
 		models.streamSimple(m, context as never, options as never);
 
+	const config = readConfig();
 	const jobs = new BackgroundJobs();
 
-	// The session is created after tools (tools are a constructor argument),
-	// but auto-background needs to ask the session about pending steering —
-	// wire it through a holder that is filled once the session exists.
 	const holder: { session: AgentSession | null } = { session: null };
 	const tools = createCodingTools(cwd, {
 		bash: {
 			jobs,
-			autoBackground: { steeringPending: () => holder.session?.hasPendingSteering() ?? false },
+			autoBackground: {
+				steeringPending: () => holder.session?.hasPendingSteering() ?? false,
+				...(config.bash?.auto_background_threshold_ms !== undefined
+					? { thresholdMs: config.bash.auto_background_threshold_ms }
+					: {}),
+			},
 		},
 	});
 	const filtered = applyToolFilter(tools, args.tools, args.excludeTools);
@@ -82,9 +77,6 @@ export function buildSession(input: BuildSessionInput): BuiltSession {
 		sessionManager,
 		snapshots: new SnapshotManager(cwd),
 		jobs,
-		// Only pass a UI for interactive/rpc — a real UI enables the ask tool.
-		// Print mode omits it so AgentSession uses its internal headless UI and
-		// the ask tool is not injected.
 		...(input.ui ? { ui: input.ui } : {}),
 		...(args.noContextFiles ? { contextFiles: false as const } : {}),
 	});
@@ -93,12 +85,10 @@ export function buildSession(input: BuildSessionInput): BuiltSession {
 	return { session, models, jobs };
 }
 
-function resolveModel(args: Args, models: MutableModels): Model<any> {
-	const raw = args.model;
+function resolveModel(args: Args, models: MutableModels, defaultModel: string): Model<any> {
+	const raw = args.model ?? process.env.ARBOR_MODEL ?? defaultModel;
 	if (!raw) {
-		throw new Error(
-			"No model specified. Use --model <provider/id> (e.g. --model anthropic/claude-opus-4-8).",
-		);
+		throw new Error("No model configured. Type /model select to choose a model.");
 	}
 	let provider = args.provider;
 	let modelId = raw;
@@ -108,7 +98,7 @@ function resolveModel(args: Args, models: MutableModels): Model<any> {
 		modelId = raw.slice(slash + 1);
 	}
 	if (!provider) {
-		throw new Error("No provider. Use --provider <name> or --model <provider/id>.");
+		throw new Error("No provider. Use --model <provider/id> or set ARBOR_MODEL env var.");
 	}
 	const model = models.getModel(provider, modelId);
 	if (!model) {

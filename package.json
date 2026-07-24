@@ -2,7 +2,9 @@
   "name": "arbor-monorepo",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "check": "tsc -p packages/core/tsconfig.json && tsc -p packages/tui/tsconfig.json && tsc -p packages/cli/tsconfig.json && biome check packages",
     "check:fix": "tsc -p packages/core/tsconfig.json && tsc -p packages/tui/tsconfig.json && tsc -p packages/cli/tsconfig.json && biome check --write packages",
@@ -15,5 +17,8 @@
     "@biomejs/biome": "2.5.5",
     "@types/node": "26.1.1",
     "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "smol-toml": "^1.7.0"
   }
 }

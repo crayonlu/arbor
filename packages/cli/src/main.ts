@@ -4,6 +4,7 @@
  * TUI package; interactive lazy-imports it.
  */
 import type { SessionManager } from "@arbor-space/core";
+import { ensureConfigFile, ensureModelsToml } from "@arbor-space/core/config";
 import { resolveAppMode } from "./app-mode.ts";
 import { type Args, parseArgs, printHelp } from "./args.ts";
 import { buildSession } from "./build-session.ts";
@@ -32,6 +33,9 @@ export async function main(argv: string[]): Promise<void> {
 		process.stdout.write(`${APP_VERSION}\n`);
 		process.exit(0);
 	}
+
+	ensureConfigFile();
+	ensureModelsToml();
 
 	const stdinIsTty = process.stdin.isTTY === true;
 	const stdoutIsTty = process.stdout.isTTY === true;
@@ -78,7 +82,7 @@ export async function main(argv: string[]): Promise<void> {
 	}
 
 	// print-text / print-json
-	const { session } = buildSession({ cwd: process.cwd(), args, sessionManager, mode: appMode });
+	const { session } = await buildSession({ cwd: process.cwd(), args, sessionManager, mode: appMode });
 	const initialMessage = buildInitialMessage(args, pipedStdin);
 	const exitCode = await runPrintMode(session, {
 		mode: appMode === "print-json" ? "json" : "text",
@@ -103,7 +107,7 @@ async function runInteractive(args: Args, sessionManager: SessionManager): Promi
 	// restarting the process. Each iteration builds a fresh UI + session.
 	while (true) {
 		const extensionUi = createTuiExtensionUi();
-		const { session, models, jobs } = buildSession({
+		const { session, models, jobs } = await buildSession({
 			cwd,
 			args,
 			sessionManager: manager,

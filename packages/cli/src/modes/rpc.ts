@@ -34,7 +34,7 @@ export async function runRpcMode(options: RunRpcOptions): Promise<void> {
 	};
 
 	const rpcUi = createRpcUi(output);
-	const { session, models } = buildSession({ cwd, args, sessionManager, mode: "rpc", ui: rpcUi.ui });
+	const { session, models } = await buildSession({ cwd, args, sessionManager, mode: "rpc", ui: rpcUi.ui });
 
 	const unsubscribe = session.subscribe((event: AgentEvent) => output(event));
 
