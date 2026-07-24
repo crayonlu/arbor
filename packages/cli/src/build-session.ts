@@ -88,8 +88,12 @@ export async function buildSession(input: BuildSessionInput): Promise<BuiltSessi
 function resolveModel(args: Args, models: MutableModels, defaultModel: string): Model<any> {
 	const raw = args.model ?? process.env.ARBOR_MODEL ?? defaultModel;
 	if (!raw) {
-		const first = models.getModels()[0];
-		if (first) return first;
+		const all = models.getModels();
+		const sensible = all.find(
+			(m) => m.provider === "anthropic" || m.provider === "openai" || m.provider === "deepseek",
+		);
+		if (sensible) return sensible;
+		if (all[0]) return all[0];
 		throw new Error("No model configured. Type /model select to choose a model.");
 	}
 	let provider = args.provider;

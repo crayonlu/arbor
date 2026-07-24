@@ -21,3 +21,6 @@ build/
 .vscode/
 .idea/
 *.swp
+
+# reference code (not part of the project)
+ref/
