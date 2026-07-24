@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# build artifacts
+dist/
+build/
+*.tsbuildinfo
+
+# OpenTUI native addon (fetched via optionalDependencies)
+*.node
+
+# Arbor runtime state
+.arbor/
+~/.arbor/
+
+# logs
+*.log
+
+# editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp

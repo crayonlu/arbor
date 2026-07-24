@@ -1,0 +1,19 @@
+{
+  "name": "arbor-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "check": "tsc -p packages/core/tsconfig.json && tsc -p packages/tui/tsconfig.json && tsc -p packages/cli/tsconfig.json && biome check packages",
+    "check:fix": "tsc -p packages/core/tsconfig.json && tsc -p packages/tui/tsconfig.json && tsc -p packages/cli/tsconfig.json && biome check --write packages",
+    "test": "node --test packages/core/test/*.test.ts packages/cli/test/*.test.ts && bun test packages/tui/test",
+    "test:core": "node --test packages/core/test/*.test.ts",
+    "test:cli": "node --test packages/cli/test/*.test.ts",
+    "test:tui": "bun test packages/tui/test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.5",
+    "@types/node": "26.1.1",
+    "typescript": "5.9.3"
+  }
+}
