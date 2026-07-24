@@ -1,6 +1,6 @@
 {
   "name": "@arbor-space/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "license": "MIT",
   "description": "Arbor CLI: thin entry — arg parsing, mode dispatch (print/json/rpc/interactive)",
@@ -18,7 +18,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@arbor-space/core": "0.1.1",
+    "@arbor-space/core": "0.1.2",
+    "@arbor-space/tui": "0.1.2",
     "@earendil-works/pi-ai": "0.81.1"
   },
   "devDependencies": {
