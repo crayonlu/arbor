@@ -1,6 +1,6 @@
 {
   "name": "@arbor-space/tui",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "license": "MIT",
   "description": "Arbor terminal UI: OpenTUI-based interactive renderer consuming the core event stream",
@@ -15,7 +15,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@arbor-space/core": "0.1.7",
+    "@arbor-space/core": "0.1.8",
     "@opentui/core": "0.4.5"
   },
   "devDependencies": {

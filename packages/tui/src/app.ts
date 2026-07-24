@@ -138,6 +138,7 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 	column.add(input);
 	column.add(queuedLine);
 	column.add(status.node);
+	input.focus();
 
 	// -- interaction state -------------------------------------------------
 	let queued: string | null = null;
