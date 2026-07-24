@@ -142,6 +142,54 @@ describe("tui app", () => {
 		}
 	});
 
+	it("renders the diff in split view on wide terminals", async () => {
+		await writeFile(path.join(workspace, "foo.txt"), "old line\n");
+		faux.setResponses([
+			fauxAssistantMessage(
+				[fauxToolCall("edit", { path: "foo.txt", edits: [{ oldText: "old line", newText: "new line" }] })],
+				{ stopReason: "toolUse" },
+			),
+			fauxAssistantMessage("Edited."),
+		]);
+		const { renderer, flush, captureCharFrame } = await createTestRenderer({ width: 120, height: 14 });
+		const session = makeSession();
+		const app = createTuiApp(renderer, session);
+		try {
+			await session.prompt("edit foo.txt");
+			await flush();
+			const frame = captureCharFrame();
+			assert.ok(frame.includes("new line"), "added line renders in split view");
+			assert.ok(frame.includes("old line"), "removed line renders in split view");
+		} finally {
+			app.destroy();
+			renderer.destroy();
+		}
+	});
+
+	it("renders the diff without line numbers on narrow terminals", async () => {
+		await writeFile(path.join(workspace, "foo.txt"), "old line\n");
+		faux.setResponses([
+			fauxAssistantMessage(
+				[fauxToolCall("edit", { path: "foo.txt", edits: [{ oldText: "old line", newText: "new line" }] })],
+				{ stopReason: "toolUse" },
+			),
+			fauxAssistantMessage("Edited."),
+		]);
+		const { renderer, flush, captureCharFrame } = await createTestRenderer({ width: 40, height: 12 });
+		const session = makeSession();
+		const app = createTuiApp(renderer, session);
+		try {
+			await session.prompt("edit foo.txt");
+			await flush();
+			const frame = captureCharFrame();
+			assert.ok(frame.includes("new line"), "added line renders in compact view");
+			assert.ok(frame.includes("old line"), "removed line renders in compact view");
+		} finally {
+			app.destroy();
+			renderer.destroy();
+		}
+	});
+
 	it("renders a subagent inline block and switches to its thread on Ctrl+T", async () => {
 		faux.setResponses([
 			fauxAssistantMessage([fauxToolCall("task", { prompt: "audit", agent: "scout" })], {

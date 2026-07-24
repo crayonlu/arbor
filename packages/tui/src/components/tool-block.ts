@@ -19,6 +19,8 @@ export interface ToolBlock {
 	outputNode: TextRenderable | null;
 	/** The diff node, if any. */
 	diffNode: import("@opentui/core").DiffRenderable | null;
+	/** The bordered box wrapping the diff, if any. */
+	diffBox: BoxRenderable | null;
 	clamped: boolean;
 	expanded: boolean;
 }
@@ -47,7 +49,16 @@ export function createToolBlock(
 	const body = new BoxRenderable(renderer, { flexDirection: "column", width: "100%" });
 	container.add(header);
 	container.add(body);
-	return { container, header, body, outputNode: null, diffNode: null, clamped: false, expanded: false };
+	return {
+		container,
+		header,
+		body,
+		outputNode: null,
+		diffNode: null,
+		diffBox: null,
+		clamped: false,
+		expanded: false,
+	};
 }
 
 function headerText(item: Extract<Item, { kind: "tool" }>): string {

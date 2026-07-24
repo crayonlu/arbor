@@ -144,7 +144,7 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 	let justSent: { text: string; entryId: string | null } | null = null;
 	let pendingRewind: { text: string; entryId: string | null } | null = null;
 	let palette: CommandPalette | null = null;
-	let diffSplit = renderer.width >= 100;
+	let diffView: "auto" | "split" | "unified" = "auto";
 	let expandAll = false;
 
 	// Actions exposed to interactive slash commands (session swap, input prefill).
@@ -194,18 +194,62 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 	function createDiffNode(item: Extract<Item, { kind: "tool" }>): DiffRenderable {
 		const ext = item.filePath?.split(".").pop() ?? "";
 		const filetype = ext ? (extToFiletype(ext) ?? ext) : undefined;
+		const width = renderer.width;
+		const split = diffView === "split" || (diffView === "auto" && width >= 100);
+		const compact = width < 60; // phone/SSH: drop line numbers, force unified
 		return new DiffRenderable(renderer, {
 			diff: item.diff ?? "",
-			view: diffSplit ? "split" : "unified",
+			view: split ? "split" : "unified",
+			syncScroll: split,
 			syntaxStyle,
-			showLineNumbers: true,
+			fg: theme.text,
 			...(filetype ? { filetype } : {}),
+			showLineNumbers: !compact,
+			lineNumberFg: theme.dim,
+			addedLineNumberBg: theme.addBg,
+			removedLineNumberBg: theme.delBg,
+			contextBg: theme.codeBg,
 			addedBg: theme.addBg,
 			removedBg: theme.delBg,
 			addedSignColor: theme.addFg,
 			removedSignColor: theme.delFg,
+			conceal: true,
 			...(treeSitter ? { treeSitterClient: treeSitter } : {}),
 		});
+	}
+
+	/** Mount the diff inside a thin bordered box (design: diffs keep a border). */
+	function mountDiff(tb: ToolBlock, item: Extract<Item, { kind: "tool" }>): void {
+		if (tb.outputNode) {
+			tb.body.remove(tb.outputNode);
+			tb.outputNode = null;
+		}
+		if (tb.diffBox) {
+			tb.body.remove(tb.diffBox);
+			tb.diffBox = null;
+		}
+		const diff = createDiffNode(item);
+		const box = new BoxRenderable(renderer, {
+			flexDirection: "column",
+			width: "100%",
+			border: true,
+			borderColor: theme.borderDim,
+			borderStyle: "single",
+		});
+		box.add(diff);
+		tb.body.add(box);
+		tb.diffNode = diff;
+		tb.diffBox = box;
+	}
+
+	/** Rebuild every mounted diff (used when the view style changes). */
+	function rebuildDiffs(): void {
+		const items = model.get().items;
+		for (const [id, tb] of toolBlocks) {
+			const item = items.find((i) => i.id === id);
+			if (item && item.kind === "tool" && item.diff) mountDiff(tb, item);
+		}
+		render();
 	}
 
 	function createNode(item: Item): Renderable {
@@ -227,9 +271,7 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 			const block = createToolBlock(renderer, theme, item);
 			toolBlocks.set(item.id, block);
 			if (item.diff) {
-				const diff = createDiffNode(item);
-				block.body.add(diff);
-				block.diffNode = diff;
+				mountDiff(block, item);
 			} else {
 				const out = new TextRenderable(renderer, { content: clampOutput(item), fg: theme.muted });
 				block.body.add(out);
@@ -280,12 +322,8 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 			if (!tb) return;
 			updateToolHeader(tb, item);
 			if (item.diff) {
-				if (tb.diffNode) tb.diffNode.diff = item.diff;
-				else {
-					const diff = createDiffNode(item);
-					tb.body.add(diff);
-					tb.diffNode = diff;
-				}
+				if (!tb.diffNode) mountDiff(tb, item);
+				else tb.diffNode.diff = item.diff;
 			} else if (tb.outputNode) {
 				tb.outputNode.content = clampOutput(item);
 			}
@@ -437,14 +475,20 @@ export function createTuiApp(renderer: CliRenderer, session: AgentSession, opts:
 			}
 		}
 		// Display toggles are TUI-local concerns.
-		if (trimmed === "/display diff" || trimmed === "/display diff split") {
-			diffSplit = true;
-			render();
+		if (trimmed === "/display diff") {
+			// Cycle auto → split → unified → auto.
+			diffView = diffView === "auto" ? "split" : diffView === "split" ? "unified" : "auto";
+			rebuildDiffs();
+			return;
+		}
+		if (trimmed === "/display diff split") {
+			diffView = "split";
+			rebuildDiffs();
 			return;
 		}
 		if (trimmed === "/display diff unified") {
-			diffSplit = false;
-			render();
+			diffView = "unified";
+			rebuildDiffs();
 			return;
 		}
 		if (trimmed === "/display expand") {
